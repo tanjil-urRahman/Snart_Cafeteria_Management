@@ -5,14 +5,17 @@
 session_start();
 require 'db.php';
 
-// Only logged-in students can access the wallet
+// Only logged-in users can access this page
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 
+// Only Students can use the wallet
 if ($_SESSION['role'] !== 'Student') {
+
     switch ($_SESSION['role']) {
+
         case 'Admin':
             header("Location: admin_dashboard.php");
             exit();
@@ -38,9 +41,9 @@ $message = '';
 $error = '';
 
 
-// ===============================
+// ==========================================
 // WALLET TOP-UP
-// ===============================
+// ==========================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topup_amount'])) {
 
@@ -54,39 +57,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topup_amount'])) {
 
         try {
 
-            // Start database transaction
+            // Start transaction
             $pdo->beginTransaction();
 
-            // Add money to wallet
+
+            // Add money to student's wallet
             $stmt = $pdo->prepare(
-                "UPDATE `WALLET`
-                 SET Balance = Balance + ?
+                "UPDATE STUDENT
+                 SET WalletBalance = WalletBalance + ?
                  WHERE UserID = ?"
             );
 
             $stmt->execute([$amount, $userId]);
 
 
-            // Record the transaction
+            // Record the wallet transaction
             $tx = $pdo->prepare(
-                "INSERT INTO `WALLET_TRANSACTION`
-                 (UserID, Amount, Type)
-                 VALUES (?, ?, 'Topup')"
+                "INSERT INTO WALLET_TRANSACTION
+                 (StudentID, Amount, TransactionType)
+                 VALUES (?, ?, 'Deposit')"
             );
 
             $tx->execute([$userId, $amount]);
 
 
-            // Both operations succeeded
+            // Commit both operations
             $pdo->commit();
 
-            $message = "Wallet recharged with " .
-                       number_format($amount, 2) .
-                       " Tk.";
+            $message = "Wallet recharged with "
+                     . number_format($amount, 2)
+                     . " Tk.";
 
         } catch (PDOException $e) {
 
-            // Undo changes if something failed
+            // Roll back if anything fails
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -94,37 +98,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['topup_amount'])) {
             error_log("Wallet transaction error: " . $e->getMessage());
 
             $error = "Transaction failed. Please try again.";
-
         }
     }
 }
 
 
-// ===============================
-// GET WALLET BALANCE
-// ===============================
+// ==========================================
+// GET CURRENT WALLET BALANCE
+// ==========================================
 
 $wStmt = $pdo->prepare(
-    "SELECT Balance, LastUpdated
-     FROM `WALLET`
+    "SELECT WalletBalance
+     FROM STUDENT
      WHERE UserID = ?"
 );
 
 $wStmt->execute([$userId]);
 
-$wallet = $wStmt->fetch();
+$student = $wStmt->fetch();
 
-$balance = $wallet ? $wallet['Balance'] : 0.00;
+$balance = $student ? $student['WalletBalance'] : 0.00;
 
 
-// ===============================
+// ==========================================
 // GET TRANSACTION HISTORY
-// ===============================
+// ==========================================
 
 $tStmt = $pdo->prepare(
-    "SELECT TransactionID, Amount, Type, TransactionDate
-     FROM `WALLET_TRANSACTION`
-     WHERE UserID = ?
+    "SELECT TransactionID,
+            Amount,
+            TransactionType,
+            TransactionDate
+     FROM WALLET_TRANSACTION
+     WHERE StudentID = ?
      ORDER BY TransactionDate DESC
      LIMIT 10"
 );
@@ -161,12 +167,10 @@ $history = $tStmt->fetchAll();
             margin: 0;
         }
 
-
-        /* Header */
-
         .header {
             background: #343a40;
             color: white;
+
             padding: 18px 30px;
 
             display: flex;
@@ -178,18 +182,16 @@ $history = $tStmt->fetchAll();
             margin: 0;
         }
 
-
         .back {
             color: white;
             background: #007bff;
+
             text-decoration: none;
 
             padding: 9px 15px;
+
             border-radius: 5px;
         }
-
-
-        /* Main container */
 
         .container {
             width: 90%;
@@ -198,11 +200,11 @@ $history = $tStmt->fetchAll();
             margin: 35px auto;
         }
 
-
         .welcome {
             background: white;
 
             padding: 25px;
+
             border-radius: 10px;
 
             margin-bottom: 25px;
@@ -214,9 +216,6 @@ $history = $tStmt->fetchAll();
             margin-top: 0;
         }
 
-
-        /* Wallet cards */
-
         .grid-2 {
             display: grid;
 
@@ -225,7 +224,6 @@ $history = $tStmt->fetchAll();
 
             gap: 20px;
         }
-
 
         .card {
             background: white;
@@ -241,20 +239,15 @@ $history = $tStmt->fetchAll();
             margin-top: 0;
         }
 
-
-        /* Balance */
-
         .balance {
             font-size: 2.2rem;
+
             font-weight: bold;
 
             color: #28a745;
 
             margin: 15px 0;
         }
-
-
-        /* Form */
 
         .form-group {
             margin-bottom: 15px;
@@ -280,7 +273,6 @@ $history = $tStmt->fetchAll();
             font-size: 1rem;
         }
 
-
         .btn {
             border: none;
 
@@ -295,11 +287,9 @@ $history = $tStmt->fetchAll();
 
         .btn-success {
             background: #28a745;
+
             color: white;
         }
-
-
-        /* Messages */
 
         .alert {
             padding: 12px;
@@ -311,16 +301,15 @@ $history = $tStmt->fetchAll();
 
         .alert-success {
             background: #d4edda;
+
             color: #155724;
         }
 
         .alert-danger {
             background: #f8d7da;
+
             color: #721c24;
         }
-
-
-        /* Transaction table */
 
         table {
             width: 100%;
@@ -341,7 +330,6 @@ $history = $tStmt->fetchAll();
             background: #f8f9fa;
         }
 
-
         .badge {
             padding: 5px 9px;
 
@@ -352,17 +340,19 @@ $history = $tStmt->fetchAll();
 
         .badge-success {
             background: #d4edda;
+
             color: #155724;
         }
 
         .badge-danger {
             background: #f8d7da;
+
             color: #721c24;
         }
 
-
         .empty {
             text-align: center;
+
             color: #888;
         }
 
@@ -373,8 +363,6 @@ $history = $tStmt->fetchAll();
 
 <body>
 
-
-<!-- Header -->
 
 <div class="header">
 
@@ -389,8 +377,6 @@ $history = $tStmt->fetchAll();
 
 <div class="container">
 
-
-    <!-- Welcome -->
 
     <div class="welcome">
 
@@ -408,7 +394,7 @@ $history = $tStmt->fetchAll();
     <div class="grid-2">
 
 
-        <!-- Wallet Balance -->
+        <!-- WALLET BALANCE -->
 
         <div class="card">
 
@@ -490,7 +476,7 @@ $history = $tStmt->fetchAll();
         </div>
 
 
-        <!-- Transaction History -->
+        <!-- TRANSACTION HISTORY -->
 
         <div class="card">
 
@@ -541,13 +527,15 @@ $history = $tStmt->fetchAll();
                                 <td>
 
                                     <span class="badge
-                                        <?= $h['Type'] === 'Topup'
+                                        <?= $h['TransactionType'] === 'Deposit'
                                             ? 'badge-success'
                                             : 'badge-danger'
                                         ?>"
                                     >
 
-                                        <?= htmlspecialchars($h['Type']) ?>
+                                        <?= htmlspecialchars(
+                                            $h['TransactionType']
+                                        ) ?>
 
                                     </span>
 
