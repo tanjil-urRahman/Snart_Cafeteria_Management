@@ -10,9 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    // -----------------------------
     // VALIDATION
-    // -----------------------------
 
     if (empty($email) || empty($password)) {
 
@@ -23,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
 
             // Find user
+
             $stmt = $pdo->prepare(
                 "SELECT UserID, Name, Email, Password, Role
                  FROM `USER`
@@ -51,9 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['email'] = $user['Email'];
                     $_SESSION['role'] = $user['Role'];
 
-                    // --------------------------------
+
                     // ROLE BASED REDIRECTION
-                    // --------------------------------
 
                     switch ($user['Role']) {
 

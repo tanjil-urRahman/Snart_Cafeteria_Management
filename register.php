@@ -3,9 +3,9 @@
 session_start();
 require 'db.php';
 
-// --------------------------------
+
 // CSRF token (generate once per session)
-// --------------------------------
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -24,9 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmPassword = $_POST['confirm_password'] ?? '';
     $csrfToken = $_POST['csrf_token'] ?? '';
 
-    // -----------------------------
+
     // VALIDATION
-    // -----------------------------
+
 
     if (!hash_equals($_SESSION['csrf_token'], $csrfToken)) {
 
@@ -73,9 +73,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             } else {
 
-                // --------------------------------
+            
                 // START DATABASE TRANSACTION
-                // --------------------------------
+                
 
                 $pdo->beginTransaction();
 
@@ -85,9 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     PASSWORD_DEFAULT
                 );
 
-                // --------------------------------
+                
                 // CREATE USER
-                // --------------------------------
+                
 
                 $stmt = $pdo->prepare(
                     "INSERT INTO `USER`
@@ -105,9 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Get newly created UserID
                 $userID = $pdo->lastInsertId();
 
-                // --------------------------------
+                
                 // CREATE STUDENT
-                // --------------------------------
+                
 
                 $stmt = $pdo->prepare(
                     "INSERT INTO STUDENT

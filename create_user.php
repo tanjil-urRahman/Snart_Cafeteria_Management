@@ -47,6 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = $_POST['role'] ?? '';
     $csrf_token = $_POST['csrf_token'] ?? '';
 
+    // Extra fields only needed when creating a Staff account
+    $position = trim($_POST['position'] ?? '');
+    $shift = $_POST['shift'] ?? '';
+    $salary = $_POST['salary'] ?? '';
+    $counterId = $_POST['counter_id'] ?? '';
+
     // CSRF check
     if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) {
         $error = "Invalid request. Please try again.";
@@ -69,6 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Invalid account role.";
     }
 
+    // Staff accounts need Position/Shift/Salary too, since STAFF
+    // is a separate table linked 1-to-1 with USER.
+    elseif (
+        $role === 'Staff' &&
+        ($position === '' || $shift === '' || $salary === '' || !is_numeric($salary))
+    ) {
+        $error = "Please fill in position, shift and a valid salary for a Staff account.";
+    }
+
     else {
         try {
 
@@ -81,6 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->fetch()) {
                 $error = "An account with this email already exists.";
             } else {
+
+                $pdo->beginTransaction();
 
                 // Hash password
                 $hashedPassword = password_hash(
@@ -103,10 +120,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $role
                 ]);
 
+                $newUserId = $pdo->lastInsertId();
+
+                // A Staff account also needs a matching STAFF row
+                if ($role === 'Staff') {
+
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO STAFF (UserID, Position, Shift, Salary, CounterID)
+                         VALUES (?, ?, ?, ?, ?)"
+                    );
+
+                    $stmt->execute([
+                        $newUserId,
+                        $position,
+                        $shift,
+                        $salary,
+                        $counterId !== '' ? (int)$counterId : null
+                    ]);
+                }
+
+                $pdo->commit();
+
                 $message = $role . " account created successfully.";
             }
 
         } catch (PDOException $e) {
+
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
 
             if ($e->getCode() === '23000') {
                 $error = "An account with this email already exists.";
@@ -117,6 +159,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Counters for the Staff-assignment dropdown
+$counterOptions = $pdo->query(
+    "SELECT CounterID, CounterName FROM COUNTER ORDER BY CounterName"
+)->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -166,12 +213,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <br><br>
 
     <label>Role:</label><br>
-    <select name="role" required>
+    <select name="role" id="role" required onchange="toggleStaffFields()">
         <option value="">Select Role</option>
         <option value="Staff">Staff</option>
         <option value="Admin">Admin</option>
     </select>
     <br><br>
+
+    <div id="staffFields" style="display:none;">
+
+        <label>Position:</label><br>
+        <input type="text" name="position" placeholder="Counter Cashier, Food Server...">
+        <br><br>
+
+        <label>Shift:</label><br>
+        <select name="shift">
+            <option value="">Select Shift</option>
+            <option value="Morning">Morning</option>
+            <option value="Evening">Evening</option>
+            <option value="Night">Night</option>
+        </select>
+        <br><br>
+
+        <label>Salary:</label><br>
+        <input type="number" name="salary" step="0.01" min="0">
+        <br><br>
+
+        <label>Assigned Counter (optional):</label><br>
+        <select name="counter_id">
+            <option value="">-- Not assigned yet --</option>
+            <?php foreach ($counterOptions as $c): ?>
+                <option value="<?= $c['CounterID'] ?>">
+                    <?= htmlspecialchars($c['CounterName']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <br><br>
+
+    </div>
 
     <button type="submit">Create User</button>
 
@@ -180,6 +259,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <br>
 
 <a href="admin_dashboard.php">Back to Admin Dashboard</a>
+
+<script>
+function toggleStaffFields() {
+    var role = document.getElementById('role').value;
+    document.getElementById('staffFields').style.display =
+        (role === 'Staff') ? 'block' : 'none';
+}
+</script>
 
 </body>
 </html>
